@@ -21,23 +21,25 @@
 #define STATUS_VALIDITY		(2 * 1000)	/* ms */
 #define MAX_REPORT_LENGTH	65
 
-/* Various sensor report offsets */
+/* Cooler status report offsets */
 #define RYUJIN_TEMP_SENSOR		3
 #define RYUJIN_PUMP_SPEED		5
 #define RYUJIN_INTERNAL_FAN_SPEED	7
 
+/* Cooler duty report offsets */
 #define RYUJIN_PUMP_DUTY		4
 #define RYUJIN_INTERNAL_FAN_DUTY	5
 
-/* Fan speeds of the controller */
+/* Controller status (speeds) report offsets */
 #define RYUJIN_CONTROLLER_SPEED_1	5
 #define RYUJIN_CONTROLLER_SPEED_2	7
 #define RYUJIN_CONTROLLER_SPEED_3	9
 #define RYUJIN_CONTROLLER_SPEED_4	3
 
+/* Controller duty report offsets */
 #define RYUJIN_CONTROLLER_DUTY		4
 
-/* Control commands and inner offsets */
+/* Control commands and their inner offsets */
 #define RYUJIN_CMD_PREFIX	0xEC
 
 static const u8 get_cooler_status_cmd[] = { RYUJIN_CMD_PREFIX, 0x99, 0x19 };
