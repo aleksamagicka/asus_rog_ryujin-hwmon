@@ -29,3 +29,20 @@ make dev
 ```
 
 You can then try running `sensors` and your device(s) should be listed there.
+
+### Setting fan speeds
+
+Pump, embedded/internal fan and fans connected to the controller can be controlled. Find the appropriate entry under
+`/sys/class/hwmon` (you'll need root) and echo 0-255 values to pwm1, pwm2 or pwm3, respectively. For example:
+
+```commandline
+echo 200 > /sys/class/hwmon/hwmonX/pwm1
+```
+
+where `hwmonX` will be the entry for your AIO. You can check that it's the one by looking up it's name:
+
+```commandline
+cat /sys/class/hwmon/hwmonX/name
+```
+
+which should be `rog_ryujin`.
