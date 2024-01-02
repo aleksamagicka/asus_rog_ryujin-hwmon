@@ -80,7 +80,6 @@ static const char *const rog_ryujin_speed_label[] = {
 struct rog_ryujin_data {
 	struct hid_device *hdev;
 	struct device *hwmon_dev;
-	struct dentry *debugfs;
 	/* For locking access to buffer */
 	struct mutex buffer_lock;
 	/* For queueing multiple readers */
