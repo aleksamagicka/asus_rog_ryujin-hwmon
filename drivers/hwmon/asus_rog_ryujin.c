@@ -87,7 +87,7 @@ struct rog_ryujin_data {
 	/* Sensor data */
 	s32 temp_input[1];
 	u16 speed_input[6];	/* Pump, internal fan and four controller fan speeds in RPM */
-	u8 duty_input[3];	/* Pump, internal and controller fan duty in PWM */
+	u8 duty_input[3];	/* Pump, internal fan and controller fan duty in PWM */
 
 	u8 *buffer;
 	unsigned long updated;	/* jiffies */
@@ -155,15 +155,15 @@ static int rog_ryujin_write_expanded(struct rog_ryujin_data *priv, const u8 *cmd
 }
 
 /* Assumes priv->status_report_request_mutex is locked */
-static int rog_ryujin_execute_cmd(struct rog_ryujin_data *priv, const u8 *cmd, int cmd_length, struct completion *status_completion)
+static int rog_ryujin_execute_cmd(struct rog_ryujin_data *priv, const u8 *cmd, int cmd_length,
+				  struct completion *status_completion)
 {
 	int ret;
 
 	/*
 	 * Disable raw event parsing for a moment to safely reinitialize the
 	 * completion. Reinit is done because hidraw could have triggered
-	 * the raw event parsing and marked the accompanying completion
-	 * completion as done.
+	 * the raw event parsing and marked the passed in completion as done.
 	 */
 	spin_lock_bh(&priv->status_report_request_lock);
 	reinit_completion(status_completion);
@@ -197,22 +197,30 @@ static int rog_ryujin_get_status(struct rog_ryujin_data *priv)
 	}
 
 	/* Retrieve cooler status */
-	ret = rog_ryujin_execute_cmd(priv, get_cooler_status_cmd, GET_CMD_LENGTH, &priv->cooler_status_received);
+	ret =
+	    rog_ryujin_execute_cmd(priv, get_cooler_status_cmd, GET_CMD_LENGTH,
+				   &priv->cooler_status_received);
 	if (ret < 0)
 		goto unlock_and_return;
 
 	/* Retrieve controller status (speeds) */
-	ret = rog_ryujin_execute_cmd(priv, get_controller_speed_cmd, GET_CMD_LENGTH, &priv->controller_status_received);
+	ret =
+	    rog_ryujin_execute_cmd(priv, get_controller_speed_cmd, GET_CMD_LENGTH,
+				   &priv->controller_status_received);
 	if (ret < 0)
 		goto unlock_and_return;
 
 	/* Retrieve cooler duty */
-	ret = rog_ryujin_execute_cmd(priv, get_cooler_duty_cmd, GET_CMD_LENGTH, &priv->cooler_duty_received);
+	ret =
+	    rog_ryujin_execute_cmd(priv, get_cooler_duty_cmd, GET_CMD_LENGTH,
+				   &priv->cooler_duty_received);
 	if (ret < 0)
 		goto unlock_and_return;
 
 	/* Retrieve controller duty */
-	ret = rog_ryujin_execute_cmd(priv, get_controller_duty_cmd, GET_CMD_LENGTH, &priv->controller_duty_received);
+	ret =
+	    rog_ryujin_execute_cmd(priv, get_controller_duty_cmd, GET_CMD_LENGTH,
+				   &priv->controller_duty_received);
 	if (ret < 0)
 		goto unlock_and_return;
 
@@ -275,10 +283,97 @@ static int rog_ryujin_read_string(struct device *dev, enum hwmon_sensor_types ty
 	return 0;
 }
 
+static int rog_ryujin_write_fixed_duty(struct rog_ryujin_data *priv, int channel, int val)
+{
+	u8 set_cmd[SET_CMD_LENGTH];
+	int ret;
+
+	if (channel < 2) {
+		/*
+		 * Retrieve cooler duty since both pump and internal fan are set
+		 * together, then write back with one of them modified
+		 */
+		ret = mutex_lock_interruptible(&priv->status_report_request_mutex);
+		if (ret < 0)
+			return ret;
+		ret =
+		    rog_ryujin_execute_cmd(priv, get_cooler_duty_cmd, GET_CMD_LENGTH,
+					   &priv->cooler_duty_received);
+		if (ret < 0)
+			goto unlock_and_return;
+
+		memcpy(set_cmd, set_cooler_duty_cmd, SET_CMD_LENGTH);
+
+		/* Cooler duties are set as 0-100% */
+		val = rog_ryujin_pwm_to_percent(val);
+
+		if (channel == 0) {
+			/* Cooler pump duty */
+			set_cmd[RYUJIN_SET_COOLER_PUMP_DUTY_OFFSET] = val;
+			set_cmd[RYUJIN_SET_COOLER_FAN_DUTY_OFFSET] = priv->duty_input[1];
+		} else if (channel == 1) {
+			/* Cooler internal fan duty */
+			set_cmd[RYUJIN_SET_COOLER_PUMP_DUTY_OFFSET] = priv->duty_input[0];
+			set_cmd[RYUJIN_SET_COOLER_FAN_DUTY_OFFSET] = val;
+		}
+
+		ret = rog_ryujin_write_expanded(priv, set_cmd, SET_CMD_LENGTH);
+unlock_and_return:
+		mutex_unlock(&priv->status_report_request_mutex);
+		if (ret < 0)
+			return ret;
+	} else {
+		/*
+		 * Controller fan duty (channel == 2). No need to retrieve current
+		 * duty, just set it
+		 */
+		memcpy(set_cmd, set_controller_duty_cmd, SET_CMD_LENGTH);
+		set_cmd[RYUJIN_SET_CONTROLLER_FAN_DUTY_OFFSET] = val;
+
+		ret = rog_ryujin_write_expanded(priv, set_cmd, SET_CMD_LENGTH);
+		if (ret < 0)
+			return ret;
+	}
+
+	/* Lock onto this value until next refresh cycle */
+	priv->duty_input[channel] = val;
+
+	return 0;
+}
+
+static int rog_ryujin_write(struct device *dev, enum hwmon_sensor_types type, u32 attr, int channel,
+			    long val)
+{
+	struct rog_ryujin_data *priv = dev_get_drvdata(dev);
+	int ret;
+
+	switch (type) {
+	case hwmon_pwm:
+		switch (attr) {
+		case hwmon_pwm_input:
+			if (val < 0 || val > 255)
+				return -EINVAL;
+
+			ret = rog_ryujin_write_fixed_duty(priv, channel, val);
+			if (ret < 0)
+				return ret;
+			break;
+		default:
+			return -EOPNOTSUPP;
+		}
+		break;
+	default:
+		return -EOPNOTSUPP;
+	}
+
+	return 0;
+}
+
 static const struct hwmon_ops rog_ryujin_hwmon_ops = {
 	.is_visible = rog_ryujin_is_visible,
 	.read = rog_ryujin_read,
-	.read_string = rog_ryujin_read_string
+	.read_string = rog_ryujin_read_string,
+	.write = rog_ryujin_write
 };
 
 static const struct hwmon_channel_info *rog_ryujin_info[] = {
@@ -286,14 +381,14 @@ static const struct hwmon_channel_info *rog_ryujin_info[] = {
 			   HWMON_T_INPUT | HWMON_T_LABEL),
 	HWMON_CHANNEL_INFO(fan,
 			   HWMON_F_INPUT | HWMON_F_LABEL,
-		           HWMON_F_INPUT | HWMON_F_LABEL,
+			   HWMON_F_INPUT | HWMON_F_LABEL,
 			   HWMON_F_INPUT | HWMON_F_LABEL,
 			   HWMON_F_INPUT | HWMON_F_LABEL,
 			   HWMON_F_INPUT | HWMON_F_LABEL,
 			   HWMON_F_INPUT | HWMON_F_LABEL),
 	HWMON_CHANNEL_INFO(pwm,
 			   HWMON_PWM_INPUT,
-		           HWMON_PWM_INPUT,
+			   HWMON_PWM_INPUT,
 			   HWMON_PWM_INPUT),
 	NULL
 };
