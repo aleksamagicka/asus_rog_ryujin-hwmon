@@ -42,10 +42,10 @@
 /* Control commands and their inner offsets */
 #define RYUJIN_CMD_PREFIX	0xEC
 
-static const u8 get_cooler_status_cmd[] = { RYUJIN_CMD_PREFIX, 0x99, 0x19 };
-static const u8 get_cooler_duty_cmd[] = { RYUJIN_CMD_PREFIX, 0x9A, 0x1A };
-static const u8 get_controller_speed_cmd[] = { RYUJIN_CMD_PREFIX, 0xA0, 0x20 };
-static const u8 get_controller_duty_cmd[] = { RYUJIN_CMD_PREFIX, 0xA1, 0x21 };
+static const u8 get_cooler_status_cmd[] = { RYUJIN_CMD_PREFIX, 0x99 };
+static const u8 get_cooler_duty_cmd[] = { RYUJIN_CMD_PREFIX, 0x9A };
+static const u8 get_controller_speed_cmd[] = { RYUJIN_CMD_PREFIX, 0xA0 };
+static const u8 get_controller_duty_cmd[] = { RYUJIN_CMD_PREFIX, 0xA1 };
 
 #define RYUJIN_SET_COOLER_PUMP_DUTY_OFFSET	3
 #define RYUJIN_SET_COOLER_FAN_DUTY_OFFSET	4
@@ -55,8 +55,14 @@ static const u8 set_cooler_duty_cmd[] = { RYUJIN_CMD_PREFIX, 0x1A, 0x00, 0x00, 0
 static const u8 set_controller_duty_cmd[] = { RYUJIN_CMD_PREFIX, 0x21, 0x00, 0x00, 0x00 };
 
 /* Command lengths */
-#define GET_CMD_LENGTH	3	/* Same length for all get commands */
+#define GET_CMD_LENGTH	2	/* Same length for all get commands */
 #define SET_CMD_LENGTH	5	/* Same length for all set commands */
+
+/* Command response headers */
+#define RYUJIN_GET_COOLER_STATUS_CMD_RESPONSE		0x19
+#define RYUJIN_GET_COOLER_DUTY_CMD_RESPONSE		0x1A
+#define RYUJIN_GET_CONTROLLER_SPEED_CMD_RESPONSE	0x20
+#define RYUJIN_GET_CONTROLLER_DUTY_CMD_RESPONSE		0x21
 
 static const char *const rog_ryujin_temp_label[] = {
 	"Coolant temp"
@@ -408,7 +414,7 @@ static int rog_ryujin_raw_event(struct hid_device *hdev, struct hid_report *repo
 	if (data[0] != RYUJIN_CMD_PREFIX)
 		return 0;
 
-	if (data[1] == get_cooler_status_cmd[1]) {
+	if (data[1] == RYUJIN_GET_COOLER_STATUS_CMD_RESPONSE) {
 		/* Received coolant temp and speeds of pump and internal fan */
 		priv->temp_input[0] = get_unaligned_be16(data + RYUJIN_TEMP_SENSOR) * 10;
 		priv->speed_input[0] = get_unaligned_le16(data + RYUJIN_PUMP_SPEED);
@@ -416,7 +422,7 @@ static int rog_ryujin_raw_event(struct hid_device *hdev, struct hid_report *repo
 
 		if (!completion_done(&priv->cooler_status_received))
 			complete_all(&priv->cooler_status_received);
-	} else if (data[1] == get_controller_speed_cmd[1]) {
+	} else if (data[1] == RYUJIN_GET_CONTROLLER_SPEED_CMD_RESPONSE) {
 		/* Received speeds of four fans attached to the controller */
 		priv->speed_input[2] = get_unaligned_le16(data + RYUJIN_CONTROLLER_SPEED_1);
 		priv->speed_input[3] = get_unaligned_le16(data + RYUJIN_CONTROLLER_SPEED_2);
@@ -425,14 +431,14 @@ static int rog_ryujin_raw_event(struct hid_device *hdev, struct hid_report *repo
 
 		if (!completion_done(&priv->controller_status_received))
 			complete_all(&priv->controller_status_received);
-	} else if (data[1] == get_cooler_duty_cmd[1]) {
+	} else if (data[1] == RYUJIN_GET_COOLER_DUTY_CMD_RESPONSE) {
 		/* Received pump and internal fan duties (in %) */
 		priv->duty_input[0] = rog_ryujin_percent_to_pwm(data[RYUJIN_PUMP_DUTY]);
 		priv->duty_input[1] = rog_ryujin_percent_to_pwm(data[RYUJIN_INTERNAL_FAN_DUTY]);
 
 		if (!completion_done(&priv->cooler_duty_received))
 			complete_all(&priv->cooler_duty_received);
-	} else if (data[1] == get_controller_duty_cmd[1]) {
+	} else if (data[1] == RYUJIN_GET_CONTROLLER_DUTY_CMD_RESPONSE) {
 		/* Received controller duty for fans (in PWM) */
 		priv->duty_input[2] = data[RYUJIN_CONTROLLER_DUTY];
 
