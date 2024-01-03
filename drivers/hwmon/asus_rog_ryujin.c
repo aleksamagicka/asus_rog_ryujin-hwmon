@@ -91,6 +91,8 @@ struct rog_ryujin_data {
 	struct completion controller_status_received;
 	struct completion cooler_duty_received;
 	struct completion controller_duty_received;
+	struct completion cooler_duty_set;
+	struct completion controller_duty_set;
 
 	/* Sensor data */
 	s32 temp_input[1];
@@ -327,7 +329,7 @@ static int rog_ryujin_write_fixed_duty(struct rog_ryujin_data *priv, int channel
 			set_cmd[RYUJIN_SET_COOLER_FAN_DUTY_OFFSET] = val;
 		}
 
-		ret = rog_ryujin_write_expanded(priv, set_cmd, SET_CMD_LENGTH);
+		ret = rog_ryujin_execute_cmd(priv, set_cmd, SET_CMD_LENGTH, &priv->cooler_duty_set);
 unlock_and_return:
 		mutex_unlock(&priv->status_report_request_mutex);
 		if (ret < 0)
@@ -340,7 +342,9 @@ unlock_and_return:
 		memcpy(set_cmd, set_controller_duty_cmd, SET_CMD_LENGTH);
 		set_cmd[RYUJIN_SET_CONTROLLER_FAN_DUTY_OFFSET] = val;
 
-		ret = rog_ryujin_write_expanded(priv, set_cmd, SET_CMD_LENGTH);
+		ret =
+		    rog_ryujin_execute_cmd(priv, set_cmd, SET_CMD_LENGTH,
+					   &priv->controller_duty_set);
 		if (ret < 0)
 			return ret;
 	}
@@ -435,14 +439,52 @@ static int rog_ryujin_raw_event(struct hid_device *hdev, struct hid_report *repo
 		if (!completion_done(&priv->controller_status_received))
 			complete_all(&priv->controller_status_received);
 	} else if (data[1] == RYUJIN_GET_COOLER_DUTY_CMD_RESPONSE) {
-		/* Received pump and internal fan duties (in %) */
+		/* Received report for pump and internal fan duties (in %) */
+		if (data[RYUJIN_PUMP_DUTY] == 0 && data[RYUJIN_INTERNAL_FAN_DUTY] == 0) {
+			/*
+			 * We received a report with zeroes for duty in both places.
+			 * The device returns this as a confirmation that setting values
+			 * is successful. If we initiated a write, mark it as complete.
+			 */
+			if (!completion_done(&priv->cooler_duty_set))
+				complete_all(&priv->cooler_duty_set);
+			else if (!completion_done(&priv->cooler_duty_received))
+				/*
+				 * We didn't initiate a write, but received both zeroes.
+				 * This means that either both duties are actually zero,
+				 * or that we received a success report caused by userspace.
+				 * We're expecting a report, so parse it.
+				 */
+				goto read_cooler_duty;
+			return 0;
+		}
+read_cooler_duty:
 		priv->duty_input[0] = rog_ryujin_percent_to_pwm(data[RYUJIN_PUMP_DUTY]);
 		priv->duty_input[1] = rog_ryujin_percent_to_pwm(data[RYUJIN_INTERNAL_FAN_DUTY]);
 
 		if (!completion_done(&priv->cooler_duty_received))
 			complete_all(&priv->cooler_duty_received);
 	} else if (data[1] == RYUJIN_GET_CONTROLLER_DUTY_CMD_RESPONSE) {
-		/* Received controller duty for fans (in PWM) */
+		/* Received report for controller duty for fans (in PWM) */
+		if (data[RYUJIN_CONTROLLER_DUTY] == 0) {
+			/*
+			 * We received a report with a zero for duty. The device returns this as
+			 * a confirmation that setting the controller duty value was successful.
+			 * If we initiated a write, mark it as complete.
+			 */
+			if (!completion_done(&priv->controller_duty_set))
+				complete_all(&priv->controller_duty_set);
+			else if (!completion_done(&priv->controller_duty_received))
+				/*
+				 * We didn't initiate a write, but received a zero for duty.
+				 * This means that either the duty is actually zero, or that
+				 * we received a success report caused by userspace.
+				 * We're expecting a report, so parse it.
+				 */
+				goto read_controller_duty;
+			return 0;
+		}
+read_controller_duty:
 		priv->duty_input[2] = data[RYUJIN_CONTROLLER_DUTY];
 
 		if (!completion_done(&priv->controller_duty_received))
@@ -505,6 +547,8 @@ static int rog_ryujin_probe(struct hid_device *hdev, const struct hid_device_id 
 	init_completion(&priv->controller_status_received);
 	init_completion(&priv->cooler_duty_received);
 	init_completion(&priv->controller_duty_received);
+	init_completion(&priv->cooler_duty_set);
+	init_completion(&priv->controller_duty_set);
 
 	priv->hwmon_dev = hwmon_device_register_with_info(&hdev->dev, "rog_ryujin",
 							  priv, &rog_ryujin_chip_info, NULL);
