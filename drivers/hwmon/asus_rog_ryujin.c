@@ -232,12 +232,12 @@ static int rog_ryujin_get_status(struct rog_ryujin_data *priv)
 	if (ret < 0)
 		goto unlock_and_return;
 
+	priv->updated = jiffies;
+
 unlock_and_return:
 	mutex_unlock(&priv->status_report_request_mutex);
 	if (ret < 0)
 		return ret;
-
-	priv->updated = jiffies;
 
 	return 0;
 }
