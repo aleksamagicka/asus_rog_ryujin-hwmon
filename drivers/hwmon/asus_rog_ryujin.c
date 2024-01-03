@@ -318,10 +318,12 @@ static int rog_ryujin_write_fixed_duty(struct rog_ryujin_data *priv, int channel
 		if (channel == 0) {
 			/* Cooler pump duty */
 			set_cmd[RYUJIN_SET_COOLER_PUMP_DUTY_OFFSET] = val;
-			set_cmd[RYUJIN_SET_COOLER_FAN_DUTY_OFFSET] = priv->duty_input[1];
+			set_cmd[RYUJIN_SET_COOLER_FAN_DUTY_OFFSET] =
+			    rog_ryujin_pwm_to_percent(priv->duty_input[1]);
 		} else if (channel == 1) {
 			/* Cooler internal fan duty */
-			set_cmd[RYUJIN_SET_COOLER_PUMP_DUTY_OFFSET] = priv->duty_input[0];
+			set_cmd[RYUJIN_SET_COOLER_PUMP_DUTY_OFFSET] =
+			    rog_ryujin_pwm_to_percent(priv->duty_input[0]);
 			set_cmd[RYUJIN_SET_COOLER_FAN_DUTY_OFFSET] = val;
 		}
 
@@ -416,7 +418,8 @@ static int rog_ryujin_raw_event(struct hid_device *hdev, struct hid_report *repo
 
 	if (data[1] == RYUJIN_GET_COOLER_STATUS_CMD_RESPONSE) {
 		/* Received coolant temp and speeds of pump and internal fan */
-		priv->temp_input[0] = data[RYUJIN_TEMP_SENSOR_1] * 1000 + data[RYUJIN_TEMP_SENSOR_2] * 100;
+		priv->temp_input[0] =
+		    data[RYUJIN_TEMP_SENSOR_1] * 1000 + data[RYUJIN_TEMP_SENSOR_2] * 100;
 		priv->speed_input[0] = get_unaligned_le16(data + RYUJIN_PUMP_SPEED);
 		priv->speed_input[1] = get_unaligned_le16(data + RYUJIN_INTERNAL_FAN_SPEED);
 
