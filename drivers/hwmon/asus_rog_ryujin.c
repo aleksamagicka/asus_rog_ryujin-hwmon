@@ -18,7 +18,7 @@
 #define USB_VENDOR_ID_ASUS_ROG		0x0b05
 #define USB_PRODUCT_ID_RYUJIN_AIO	0x1988	/* ASUS ROG RYUJIN II 360 */
 
-#define STATUS_VALIDITY		(2 * 1000)	/* ms */
+#define STATUS_VALIDITY		1500	/* ms */
 #define MAX_REPORT_LENGTH	65
 
 /* Cooler status report offsets */
