@@ -22,7 +22,8 @@
 #define MAX_REPORT_LENGTH	65
 
 /* Cooler status report offsets */
-#define RYUJIN_TEMP_SENSOR		3
+#define RYUJIN_TEMP_SENSOR_1		3
+#define RYUJIN_TEMP_SENSOR_2		4
 #define RYUJIN_PUMP_SPEED		5
 #define RYUJIN_INTERNAL_FAN_SPEED	7
 
@@ -415,7 +416,7 @@ static int rog_ryujin_raw_event(struct hid_device *hdev, struct hid_report *repo
 
 	if (data[1] == RYUJIN_GET_COOLER_STATUS_CMD_RESPONSE) {
 		/* Received coolant temp and speeds of pump and internal fan */
-		priv->temp_input[0] = get_unaligned_be16(data + RYUJIN_TEMP_SENSOR) * 10;
+		priv->temp_input[0] = data[RYUJIN_TEMP_SENSOR_1] * 1000 + data[RYUJIN_TEMP_SENSOR_2] * 100;
 		priv->speed_input[0] = get_unaligned_le16(data + RYUJIN_PUMP_SPEED);
 		priv->speed_input[1] = get_unaligned_le16(data + RYUJIN_INTERNAL_FAN_SPEED);
 
