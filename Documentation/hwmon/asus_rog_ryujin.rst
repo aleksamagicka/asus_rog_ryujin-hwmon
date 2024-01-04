@@ -1,7 +1,7 @@
 .. SPDX-License-Identifier: GPL-2.0-or-later
 
 Kernel driver asus_rog_ryujin
-=================================
+=============================
 
 Supported devices:
 
@@ -14,12 +14,14 @@ Description
 
 This driver enables hardware monitoring support for the listed ASUS ROG RYUJIN
 all-in-one CPU liquid coolers. Available sensors are pump, internal and external
-(controller) fan speed in RPM, as well as coolant temperature.
+(controller) fan speed in RPM, their duties in PWM, as well as coolant temperature.
 
-Attaching external fans is optional and allows it to be controlled from the device. If
-it's not connected, the fan-related sensors will report zeroes.
+Attaching external fans to the controller is optional and allows them to be
+controlled from the device. If not connected, the fan-related sensors will
+report zeroes. The controller is a separate hardware unit that comes bundled
+with the AIO and connects to it to allow fan control.
 
-The addressable RGB LEDs and LCD screen are not supported in this driver and should
+The addressable LCD screen is not supported in this driver and should
 be controlled through userspace tools.
 
 Usage notes
