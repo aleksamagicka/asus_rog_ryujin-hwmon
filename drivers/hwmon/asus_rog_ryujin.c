@@ -301,7 +301,7 @@ static int rog_ryujin_write_fixed_duty(struct rog_ryujin_data *priv, int channel
 	if (channel < 2) {
 		/*
 		 * Retrieve cooler duty since both pump and internal fan are set
-		 * together, then write back with one of them modified
+		 * together, then write back with one of them modified.
 		 */
 		ret = mutex_lock_interruptible(&priv->status_report_request_mutex);
 		if (ret < 0)
@@ -337,7 +337,7 @@ unlock_and_return:
 	} else {
 		/*
 		 * Controller fan duty (channel == 2). No need to retrieve current
-		 * duty, just set it
+		 * duty, so just send the command.
 		 */
 		memcpy(set_cmd, set_controller_duty_cmd, SET_CMD_LENGTH);
 		set_cmd[RYUJIN_SET_CONTROLLER_FAN_DUTY_OFFSET] = val;
@@ -519,9 +519,7 @@ static int rog_ryujin_probe(struct hid_device *hdev, const struct hid_device_id 
 		return ret;
 	}
 
-	/*
-	 * Enable hidraw so existing user-space tools can continue to work.
-	 */
+	/* Enable hidraw so existing user-space tools can continue to work */
 	ret = hid_hw_start(hdev, HID_CONNECT_HIDRAW);
 	if (ret) {
 		hid_err(hdev, "hid hw start failed with %d\n", ret);
