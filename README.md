@@ -6,7 +6,7 @@ _Hwmon Linux kernel driver for monitoring Asus ROG Ryujin AIO coolers_
 
 The following device(s) are supported by this driver:
 
-* ASUS ROG RYUJIN II 360
+* ASUS ROG RYUJIN II 360, since kernel v6.9
 
 It's very likely that 240 is supported as well, but no one has tested that yet.
 
