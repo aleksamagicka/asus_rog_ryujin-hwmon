@@ -7,8 +7,11 @@ _Hwmon Linux kernel driver for monitoring Asus ROG Ryujin AIO coolers_
 The following device(s) are supported by this driver:
 
 * ASUS ROG RYUJIN II 360, since kernel v6.9
+* ASUS ROG RYUJIN III EXTREME, since kernel v7.3
+* ASUS ROG RYUJIN III EVA EDITION, since kernel v7.3
+* ASUS ROG RYUJIN III WHITE EDITION, since kernel v7.3
 
-It's very likely that 240 is supported as well, but no one has tested that yet.
+It's very likely that the RYUJIN II 240 is supported as well, but no one has tested that yet.
 
 Being a standard `hwmon` driver, it provides readings via `sysfs`, which are easily accessible through `lm-sensors` as usual.
 
